@@ -1,8 +1,12 @@
 import {Component, Input, OnInit} from '@angular/core';
-import {ShoppingListService} from '../../shopping-list/shopping-list.service';
+import {ActivatedRoute, Params, Router} from '@angular/router';
+import { Store } from '@ngrx/store';
+
+import * as ShoppingListActions from '../../shopping-list/store/shopping-list.actions';
 import {Recipe} from '../recipe.model';
-import {ActivatedRoute, Data, Params, Router} from '@angular/router';
-import {RecipeService} from '../recipe.service';
+import * as fromApp from '../../store/app.reducer';
+import * as RecipesActions from '../store/recipes.actions';
+import {map, switchMap} from 'rxjs/operators';
 
 @Component({
   selector: 'app-recipe-detail',
@@ -16,21 +20,26 @@ export class RecipeDetailComponent implements OnInit {
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private shoppingListService: ShoppingListService,
-    private recipeService: RecipeService
+    private store: Store<fromApp.AppState>
   ) { }
 
   ngOnInit() {
-    this.route.params.subscribe(
-      (params: Params) => {
-        this.recipeId = +params.id;
-        this.recipe = this.recipeService.getRecipe(this.recipeId);
-      }
+    this.route.params.pipe(
+      map(params => +params.id),
+      switchMap(id => {
+        this.recipeId = id;
+        return this.store.select('recipes');
+      }),
+      map(recipesState => {
+        return recipesState.recipes.find((recipe, index) => index === this.recipeId);
+      })
+    ).subscribe(
+      recipe => this.recipe = recipe
     );
   }
 
   toShoppingList() {
-    this.shoppingListService.addIngredients(this.recipe.ingredients);
+    this.store.dispatch(new ShoppingListActions.AddIngredients(this.recipe.ingredients));
   }
 
   onEditClick() {
@@ -38,7 +47,7 @@ export class RecipeDetailComponent implements OnInit {
   }
 
   onDeleteClick() {
-    this.recipeService.deleteRecipe(this.recipeId);
+    this.store.dispatch(new RecipesActions.DeleteRecipe(this.recipeId));
     this.router.navigate(['recipes']);
   }
 
